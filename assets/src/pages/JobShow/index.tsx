@@ -50,6 +50,7 @@ function JobShow() {
               borderColor="neutral-30"
               borderRadius="md"
               overflow="hidden"
+              key={column}
             >
               <Flex
                 p={10}
@@ -65,7 +66,7 @@ function JobShow() {
               </Flex>
               <Flex direction="column" p={10} pb={0}>
                 {sortedCandidates[column]?.map((candidate: Candidate) => (
-                  <CandidateCard candidate={candidate} />
+                  <CandidateCard key={candidate.id} candidate={candidate} />
                 ))}
               </Flex>
             </Box>

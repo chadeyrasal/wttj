@@ -1,12 +1,12 @@
 {:ok, job} = Wttj.Jobs.create_job(%{name: "Full Stack Developer"})
 
-candidate =
+_candidate =
   Wttj.Candidates.create_candidate(%{job_id: job.id, email: "user1@wttj.co", position: 0})
 
-candidate =
+_candidate =
   Wttj.Candidates.create_candidate(%{job_id: job.id, email: "user2@wttj.co", position: 1})
 
-candidate =
+_candidate =
   Wttj.Candidates.create_candidate(%{
     job_id: job.id,
     email: "user3@wttj.co",
@@ -14,7 +14,7 @@ candidate =
     status: :interview
   })
 
-candidate =
+_candidate =
   Wttj.Candidates.create_candidate(%{
     job_id: job.id,
     email: "user4@wttj.co",
@@ -22,7 +22,7 @@ candidate =
     status: :rejected
   })
 
-candidate =
+_candidate =
   Wttj.Candidates.create_candidate(%{
     job_id: job.id,
     email: "user5@wttj.co",
