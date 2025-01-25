@@ -1,58 +1,69 @@
 defmodule Wttj.CandidatesTest do
   use Wttj.DataCase
 
-  alias Wttj.Candidates
+  import Wttj.CandidatesFixtures
   import Wttj.JobsFixtures
 
+  alias Ecto.Changeset
+
+  alias Wttj.Candidates
+  alias Wttj.Candidates.Candidate
+
+  @invalid_attrs %{position: nil, status: nil, email: nil}
+
   setup do
-    job1 = job_fixture()
-    job2 = job_fixture()
-    {:ok, job1: job1, job2: job2}
+    job_1 = job_fixture()
+    candidate_1 = candidate_fixture(%{job_id: job_1.id})
+
+    %{job_1: job_1, candidate_1: candidate_1}
   end
 
-  describe "candidates" do
-    alias Wttj.Candidates.Candidate
+  describe "list_candidates/1" do
+    test "returns all candidates for a given job", %{job_1: job_1, candidate_1: candidate_1} do
+      job_2 = job_fixture()
+      _candidate_2 = candidate_fixture(%{job_id: job_2.id})
 
-    import Wttj.CandidatesFixtures
-
-    @invalid_attrs %{position: nil, status: nil, email: nil}
-
-    test "list_candidates/1 returns all candidates for a given job", %{job1: job1, job2: job2} do
-      candidate1 = candidate_fixture(%{job_id: job1.id})
-      _ = candidate_fixture(%{job_id: job2.id})
-      assert Candidates.list_candidates(job1.id) == [candidate1]
+      assert Candidates.list_candidates(job_1.id) == [candidate_1]
     end
+  end
 
-    test "create_candidate/1 with valid data creates a candidate", %{job1: job1} do
+  describe "create_candidate/1" do
+    test "with valid data creates a candidate", %{job_1: %{id: job_id}} do
       email = unique_user_email()
-      valid_attrs = %{email: email, position: 3, job_id: job1.id}
-      assert {:ok, %Candidate{} = candidate} = Candidates.create_candidate(valid_attrs)
-      assert candidate.email == email
-      assert {:error, _} = Candidates.create_candidate()
+      valid_attrs = %{email: email, position: 3, job_id: job_id}
+
+      assert {:ok, %Candidate{email: ^email, position: 3, job_id: ^job_id}} =
+               Candidates.create_candidate(valid_attrs)
     end
 
-    test "update_candidate/2 with valid data updates the candidate", %{job1: job1} do
-      candidate = candidate_fixture(%{job_id: job1.id})
+    test "with invalid data returns error changeset" do
+      assert {:error, %Changeset{}} = Candidates.create_candidate(@invalid_attrs)
+    end
+  end
+
+  describe "update_candidate/2" do
+    test "with valid data updates the candidate", %{candidate_1: candidate_1} do
       email = unique_user_email()
       update_attrs = %{position: 43, status: :rejected, email: email}
 
-      assert {:ok, %Candidate{} = candidate} =
-               Candidates.update_candidate(candidate, update_attrs)
-
-      assert candidate.position == 43
-      assert candidate.status == :rejected
-      assert candidate.email == email
+      assert {:ok, %Candidate{position: 43, status: :rejected, email: ^email}} =
+               Candidates.update_candidate(candidate_1, update_attrs)
     end
 
-    test "update_candidate/2 with invalid data returns error changeset", %{job1: job1} do
-      candidate = candidate_fixture(%{job_id: job1.id})
-      assert {:error, %Ecto.Changeset{}} = Candidates.update_candidate(candidate, @invalid_attrs)
-      assert candidate == Candidates.get_candidate!(job1.id, candidate.id)
-    end
+    test "with invalid data returns error changeset", %{
+      job_1: %{id: job_id},
+      candidate_1: candidate_1
+    } do
+      assert {:error, %Changeset{}} = Candidates.update_candidate(candidate_1, @invalid_attrs)
 
-    test "change_candidate/1 returns a candidate changeset", %{job1: job1} do
-      candidate = candidate_fixture(%{job_id: job1.id})
-      assert %Ecto.Changeset{} = Candidates.change_candidate(candidate)
+      assert Candidates.get_candidate!(job_id, candidate_1.id) == candidate_1
+    end
+  end
+
+  describe "change_candidate/1" do
+    test "returns a candidate changeset", %{candidate_1: candidate_1} do
+      assert %Changeset{valid?: true, changes: %{}, errors: []} =
+               Candidates.change_candidate(candidate_1)
     end
   end
 end
