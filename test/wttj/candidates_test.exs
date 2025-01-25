@@ -94,7 +94,12 @@ defmodule Wttj.CandidatesTest do
       candidate_new_3: candidate_new_3,
       job_id: job_id
     } do
-      Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 1)
+      assert {:ok,
+              %{
+                move_all_up_by_one: "1 record(s) updated",
+                update_candidate: %Candidate{},
+                move_all_down_by_one: "All records updated"
+              }} = Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 1)
 
       assert %{status: :new, position: 2} = Repo.get!(Candidate, candidate_new_1.id)
       assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_2.id)
@@ -107,7 +112,12 @@ defmodule Wttj.CandidatesTest do
       candidate_new_3: candidate_new_3,
       job_id: job_id
     } do
-      Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 3)
+      assert {:ok,
+              %{
+                move_all_up_by_one: "2 record(s) updated",
+                update_candidate: %Candidate{},
+                move_all_down_by_one: "All records updated"
+              }} = Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 3)
 
       assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_1.id)
       assert %{status: :new, position: 3} = Repo.get!(Candidate, candidate_new_2.id)
@@ -129,7 +139,13 @@ defmodule Wttj.CandidatesTest do
       candidate_interview_3 =
         candidate_fixture(%{job_id: job_id, status: :interview, position: 3})
 
-      Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :interview, 2)
+      assert {:ok,
+              %{
+                move_all_up_by_one: "1 record(s) updated",
+                update_candidate: %Candidate{},
+                move_all_down_by_one: "All records updated"
+              }} =
+               Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :interview, 2)
 
       assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_1.id)
       assert %{status: :interview, position: 2} = Repo.get!(Candidate, candidate_new_2.id)

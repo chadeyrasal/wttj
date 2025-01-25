@@ -5,6 +5,8 @@ defmodule Wttj.Candidates do
 
   import Ecto.Query, warn: false
 
+  alias Ecto.Multi
+
   alias Wttj.Repo
   alias Wttj.Candidates.Candidate
 
@@ -87,10 +89,9 @@ defmodule Wttj.Candidates do
     Candidate.changeset(candidate, attrs)
   end
 
+  # TODO: make the arg into a struct so we can validate the data before any expensive operation
   def reorder_candidates(job_id, candidate_id, source_column, destination_column, new_position)
       when source_column == destination_column do
-    # TODO: Maybe make the arg into a struct so we can validate the data before any expensive operation
-
     %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
 
     cond do
@@ -99,35 +100,61 @@ defmodule Wttj.Candidates do
 
       # Moving candidate up
       old_position > new_position ->
-        move_all_down_by_one(job_id, source_column, new_position)
-        update_candidate(candidate, %{position: new_position})
-        move_all_up_by_one(job_id, source_column, old_position + 1)
+        Multi.new()
+        |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+          move_all_down_by_one(job_id, source_column, new_position)
+        end)
+        |> Multi.run(:update_candidate, fn _repo, _ ->
+          update_candidate(candidate, %{position: new_position})
+        end)
+        |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+          move_all_up_by_one(job_id, source_column, old_position + 1)
+        end)
+        |> Repo.transaction()
 
       # Moving candidate down
       old_position < new_position ->
-        move_all_down_by_one(job_id, source_column, new_position + 1)
-        update_candidate(candidate, %{position: new_position + 1})
-        move_all_up_by_one(job_id, source_column, old_position)
+        Multi.new()
+        |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+          move_all_down_by_one(job_id, source_column, new_position + 1)
+        end)
+        |> Multi.run(:update_candidate, fn _repo, _ ->
+          update_candidate(candidate, %{position: new_position + 1})
+        end)
+        |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+          move_all_up_by_one(job_id, source_column, old_position)
+        end)
+        |> Repo.transaction()
     end
   end
 
+  # TODO: make the arg into a struct so we can validate the data before any expensive operation
   def reorder_candidates(job_id, candidate_id, source_column, destination_column, new_position) do
-    # TODO: Maybe make the arg into a struct so we can validate the data before any expensive operation
-
     %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
 
-    move_all_down_by_one(job_id, destination_column, new_position)
-    update_candidate(candidate, %{position: new_position, status: destination_column})
-    move_all_up_by_one(job_id, source_column, old_position)
+    Multi.new()
+    |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+      move_all_down_by_one(job_id, destination_column, new_position)
+    end)
+    |> Multi.run(:update_candidate, fn _repo, _ ->
+      update_candidate(candidate, %{position: new_position, status: destination_column})
+    end)
+    |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+      move_all_up_by_one(job_id, source_column, old_position)
+    end)
+    |> Repo.transaction()
   end
 
   defp move_all_up_by_one(job_id, column, position) do
-    from(c in Candidate,
-      where: c.job_id == ^job_id,
-      where: c.status == ^column,
-      where: c.position > ^position
-    )
-    |> Repo.update_all(inc: [position: -1])
+    {number_of_updated_records, nil} =
+      from(c in Candidate,
+        where: c.job_id == ^job_id,
+        where: c.status == ^column,
+        where: c.position > ^position
+      )
+      |> Repo.update_all(inc: [position: -1])
+
+    {:ok, "#{number_of_updated_records} record(s) updated"}
   end
 
   defp move_all_down_by_one(job_id, column, position) do
@@ -138,8 +165,15 @@ defmodule Wttj.Candidates do
       order_by: [desc: c.position]
     )
     |> Repo.all()
-    |> Enum.each(fn %{position: position} = candidate ->
-      update_candidate(candidate, %{position: position + 1})
+    |> Enum.reduce_while(0, fn %{position: position} = candidate, acc ->
+      case update_candidate(candidate, %{position: position + 1}) do
+        {:ok, _candidate} -> {:cont, acc}
+        {:error, _changeset} -> {:halt, candidate.id}
+      end
     end)
+    |> case do
+      0 -> {:ok, "All records updated"}
+      _ -> {:error, "Failed to update records"}
+    end
   end
 end
