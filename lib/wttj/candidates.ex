@@ -4,8 +4,8 @@ defmodule Wttj.Candidates do
   """
 
   import Ecto.Query, warn: false
-  alias Wttj.Repo
 
+  alias Wttj.Repo
   alias Wttj.Candidates.Candidate
 
   @doc """
@@ -85,5 +85,61 @@ defmodule Wttj.Candidates do
   """
   def change_candidate(%Candidate{} = candidate, attrs \\ %{}) do
     Candidate.changeset(candidate, attrs)
+  end
+
+  def reorder_candidates(job_id, candidate_id, source_column, destination_column, new_position)
+      when source_column == destination_column do
+    # TODO: Maybe make the arg into a struct so we can validate the data before any expensive operation
+
+    %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
+
+    cond do
+      old_position == new_position ->
+        {:ok, :noop}
+
+      # Moving candidate up
+      old_position > new_position ->
+        move_all_down_by_one(job_id, source_column, new_position)
+        update_candidate(candidate, %{position: new_position})
+        move_all_up_by_one(job_id, source_column, old_position + 1)
+
+      # Moving candidate down
+      old_position < new_position ->
+        move_all_down_by_one(job_id, source_column, new_position + 1)
+        update_candidate(candidate, %{position: new_position + 1})
+        move_all_up_by_one(job_id, source_column, old_position)
+    end
+  end
+
+  def reorder_candidates(job_id, candidate_id, source_column, destination_column, new_position) do
+    # TODO: Maybe make the arg into a struct so we can validate the data before any expensive operation
+
+    %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
+
+    move_all_down_by_one(job_id, destination_column, new_position)
+    update_candidate(candidate, %{position: new_position, status: destination_column})
+    move_all_up_by_one(job_id, source_column, old_position)
+  end
+
+  defp move_all_up_by_one(job_id, column, position) do
+    from(c in Candidate,
+      where: c.job_id == ^job_id,
+      where: c.status == ^column,
+      where: c.position > ^position
+    )
+    |> Repo.update_all(inc: [position: -1])
+  end
+
+  defp move_all_down_by_one(job_id, column, position) do
+    from(c in Candidate,
+      where: c.job_id == ^job_id,
+      where: c.status == ^column,
+      where: c.position >= ^position,
+      order_by: [desc: c.position]
+    )
+    |> Repo.all()
+    |> Enum.each(fn %{position: position} = candidate ->
+      update_candidate(candidate, %{position: position + 1})
+    end)
   end
 end

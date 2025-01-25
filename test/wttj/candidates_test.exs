@@ -68,24 +68,33 @@ defmodule Wttj.CandidatesTest do
   end
 
   describe("reorder_candidate/4") do
-    setup %{job_1: %{id: job_id}} do
-      candidate_new_1 = candidate_fixture(%{job_id: job_id, status: :new, position: 1})
-      candidate_new_2 = candidate_fixture(%{job_id: job_id, status: :new, position: 2})
-      candidate_new_3 = candidate_fixture(%{job_id: job_id, status: :new, position: 3})
+    setup do
+      %{id: job_id} = job_fixture()
+
+      candidate_new_1 =
+        candidate_fixture(%{job_id: job_id, status: :new, position: 1})
+
+      candidate_new_2 =
+        candidate_fixture(%{job_id: job_id, status: :new, position: 2})
+
+      candidate_new_3 =
+        candidate_fixture(%{job_id: job_id, status: :new, position: 3})
 
       %{
         candidate_new_1: candidate_new_1,
         candidate_new_2: candidate_new_2,
-        candidate_new_3: candidate_new_3
+        candidate_new_3: candidate_new_3,
+        job_id: job_id
       }
     end
 
     test "reorders successfully when a candidate is moved up in the same column", %{
       candidate_new_1: candidate_new_1,
       candidate_new_2: candidate_new_2,
-      candidate_new_3: candidate_new_3
+      candidate_new_3: candidate_new_3,
+      job_id: job_id
     } do
-      Candidates.reorder_candidates(candidate_new_2.id, :new, :new, 1)
+      Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 1)
 
       assert %{status: :new, position: 2} = Repo.get!(Candidate, candidate_new_1.id)
       assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_2.id)
@@ -95,9 +104,10 @@ defmodule Wttj.CandidatesTest do
     test "reorders successfully when a candidate is moved down in the same column", %{
       candidate_new_1: candidate_new_1,
       candidate_new_2: candidate_new_2,
-      candidate_new_3: candidate_new_3
+      candidate_new_3: candidate_new_3,
+      job_id: job_id
     } do
-      Candidates.reorder_candidates(candidate_new_2.id, :new, :new, 3)
+      Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 3)
 
       assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_1.id)
       assert %{status: :new, position: 3} = Repo.get!(Candidate, candidate_new_2.id)
@@ -105,7 +115,7 @@ defmodule Wttj.CandidatesTest do
     end
 
     test "reorders successfully when a candidate is moved to a different column", %{
-      job_1: %{id: job_id},
+      job_id: job_id,
       candidate_new_1: candidate_new_1,
       candidate_new_2: candidate_new_2,
       candidate_new_3: candidate_new_3
@@ -119,7 +129,7 @@ defmodule Wttj.CandidatesTest do
       candidate_interview_3 =
         candidate_fixture(%{job_id: job_id, status: :interview, position: 3})
 
-      Candidates.reorder_candidates(candidate_new_2.id, :new, :interview, 2)
+      Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :interview, 2)
 
       assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_1.id)
       assert %{status: :interview, position: 2} = Repo.get!(Candidate, candidate_new_2.id)
