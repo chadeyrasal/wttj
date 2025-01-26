@@ -1,10 +1,12 @@
 import { useParams } from 'react-router-dom'
+import { useMutation, useQueryClient } from 'react-query'
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { useJob, useCandidates } from '../../hooks'
 import { Text } from '@welcome-ui/text'
 import { Flex } from '@welcome-ui/flex'
 import { Box } from '@welcome-ui/box'
 import { useMemo } from 'react'
-import { Candidate } from '../../api'
+import { Candidate, ReorderVariables, reorderCandidates } from '../../api'
 import CandidateCard from '../../components/Candidate'
 import { Badge } from '@welcome-ui/badge'
 
@@ -19,6 +21,7 @@ interface SortedCandidates {
 }
 
 function JobShow() {
+  const queryClient = useQueryClient()
   const { jobId } = useParams()
   const { job } = useJob(jobId)
   const { candidates } = useCandidates(jobId)
@@ -32,8 +35,28 @@ function JobShow() {
     }, {})
   }, [candidates])
 
+  const { mutate } = useMutation({
+    mutationFn: reorderCandidates,
+    onSettled: (_, __, variables: ReorderVariables) => {
+      queryClient.invalidateQueries(['candidates', variables.jobId])
+    },
+  })
+
+  const onDragEnd = (result: DropResult) => {
+    const { source, destination, draggableId } = result
+    if (!destination) return
+
+    mutate({
+      jobId: jobId!,
+      candidateId: draggableId,
+      sourceColumn: source.droppableId,
+      destinationColumn: destination.droppableId,
+      position: destination.index,
+    })
+  }
+
   return (
-    <>
+    <DragDropContext onDragEnd={onDragEnd}>
       <Box backgroundColor="neutral-70" p={20} alignItems="center">
         <Text variant="h5" color="white" m={0}>
           {job?.name}
@@ -62,18 +85,44 @@ function JobShow() {
                 <Text color="black" m={0} textTransform="capitalize">
                   {column}
                 </Text>
-                <Badge>{(sortedCandidates[column] || []).length}</Badge>
+                <Badge data-testid={`${column}`}>{(sortedCandidates[column] || []).length}</Badge>
               </Flex>
-              <Flex direction="column" p={10} pb={0}>
-                {sortedCandidates[column]?.map((candidate: Candidate) => (
-                  <CandidateCard key={candidate.id} candidate={candidate} />
-                ))}
-              </Flex>
+
+              <Droppable droppableId={column}>
+                {provided => (
+                  <Flex
+                    direction="column"
+                    p={10}
+                    pb={0}
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                  >
+                    {sortedCandidates[column]?.map((candidate: Candidate, index: number) => (
+                      <Draggable
+                        key={candidate.id}
+                        draggableId={candidate.id.toString()}
+                        index={index}
+                      >
+                        {provided => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                          >
+                            <CandidateCard key={candidate.id} candidate={candidate} />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </Flex>
+                )}
+              </Droppable>
             </Box>
           ))}
         </Flex>
       </Box>
-    </>
+    </DragDropContext>
   )
 }
 

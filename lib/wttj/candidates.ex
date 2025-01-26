@@ -4,9 +4,14 @@ defmodule Wttj.Candidates do
   """
 
   import Ecto.Query, warn: false
-  alias Wttj.Repo
 
-  alias Wttj.Candidates.Candidate
+  require Logger
+
+  alias Ecto.Multi
+
+  alias Wttj.Candidates.{Candidate, CandidateStatuses}
+  alias Wttj.Jobs.Job
+  alias Wttj.Repo
 
   @doc """
   Returns the list of candidates.
@@ -85,5 +90,142 @@ defmodule Wttj.Candidates do
   """
   def change_candidate(%Candidate{} = candidate, attrs \\ %{}) do
     Candidate.changeset(candidate, attrs)
+  end
+
+  def reorder_candidates(
+        %{
+          job_id: job_id,
+          candidate_id: candidate_id,
+          source_column: source_column,
+          destination_column: destination_column,
+          position: new_position
+        } = input
+      )
+      when source_column == destination_column do
+    if input |> process_input() |> is_valid_input?(input) do
+      %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
+
+      cond do
+        old_position == new_position ->
+          {:ok, :noop}
+
+        # Moving candidate up
+        old_position > new_position ->
+          Multi.new()
+          |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+            move_all_down_by_one(job_id, source_column, new_position)
+          end)
+          |> Multi.run(:update_candidate, fn _repo, _ ->
+            update_candidate(candidate, %{position: new_position})
+          end)
+          |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+            move_all_up_by_one(job_id, source_column, old_position + 1)
+          end)
+          |> Repo.transaction()
+
+        # Moving candidate down
+        old_position < new_position ->
+          Multi.new()
+          |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+            move_all_down_by_one(job_id, source_column, new_position + 1)
+          end)
+          |> Multi.run(:update_candidate, fn _repo, _ ->
+            update_candidate(candidate, %{position: new_position + 1})
+          end)
+          |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+            move_all_up_by_one(job_id, source_column, old_position)
+          end)
+          |> Repo.transaction()
+      end
+    else
+      {:error, :invalid_input}
+    end
+  end
+
+  def reorder_candidates(
+        %{
+          job_id: job_id,
+          candidate_id: candidate_id,
+          source_column: source_column,
+          destination_column: destination_column,
+          position: new_position
+        } = input
+      ) do
+    if input |> process_input() |> is_valid_input?(input) do
+      %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
+
+      Multi.new()
+      |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+        move_all_down_by_one(job_id, destination_column, new_position)
+      end)
+      |> Multi.run(:update_candidate, fn _repo, _ ->
+        update_candidate(candidate, %{position: new_position, status: destination_column})
+      end)
+      |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+        move_all_up_by_one(job_id, source_column, old_position)
+      end)
+      |> Repo.transaction()
+    else
+      {:error, :invalid_input}
+    end
+  end
+
+  defp is_valid_input?([], _input), do: true
+
+  defp is_valid_input?(invalid_keys, input) do
+    Logger.error(
+      "The following inputs are invalid: #{Enum.join(invalid_keys, ", ")} for input: #{inspect(input)}"
+    )
+
+    false
+  end
+
+  defp process_input(input) do
+    Enum.reduce(input, [], fn {key, value}, acc ->
+      case key do
+        :job_id -> Repo.exists?(Job, id: value)
+        :candidate_id -> Repo.exists?(Candidate, id: value)
+        :source_column -> CandidateStatuses.is_valid_string_status?(value)
+        :destination_column -> CandidateStatuses.is_valid_string_status?(value)
+        :position -> is_integer(value)
+      end
+      |> if do
+        acc
+      else
+        [key | acc]
+      end
+    end)
+  end
+
+  defp move_all_up_by_one(job_id, column, position) do
+    {number_of_updated_records, nil} =
+      from(c in Candidate,
+        where: c.job_id == ^job_id,
+        where: c.status == ^column,
+        where: c.position > ^position
+      )
+      |> Repo.update_all(inc: [position: -1])
+
+    {:ok, "#{number_of_updated_records} record(s) updated"}
+  end
+
+  defp move_all_down_by_one(job_id, column, position) do
+    from(c in Candidate,
+      where: c.job_id == ^job_id,
+      where: c.status == ^column,
+      where: c.position >= ^position,
+      order_by: [desc: c.position]
+    )
+    |> Repo.all()
+    |> Enum.reduce_while(0, fn %{position: position} = candidate, acc ->
+      case update_candidate(candidate, %{position: position + 1}) do
+        {:ok, _candidate} -> {:cont, acc}
+        {:error, _changeset} -> {:halt, candidate.id}
+      end
+    end)
+    |> case do
+      0 -> {:ok, "All records updated"}
+      _ -> {:error, "Failed to update records"}
+    end
   end
 end

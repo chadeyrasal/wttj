@@ -24,4 +24,36 @@ defmodule WttjWeb.CandidateController do
       render(conn, :show, candidate: candidate)
     end
   end
+
+  def reorder(conn, %{
+        "job_id" => job_id,
+        "candidate_id" => candidate_id,
+        "source_column" => source_column,
+        "destination_column" => destination_column,
+        "position" => new_position
+      }) do
+    %{
+      job_id: job_id,
+      candidate_id: candidate_id,
+      source_column: source_column,
+      destination_column: destination_column,
+      position: new_position
+    }
+    |> Candidates.reorder_candidates()
+    |> case do
+      {:ok, _} ->
+        updated_candidates = Candidates.list_candidates(job_id)
+        render(conn, :index, candidates: updated_candidates)
+
+      {:error, error} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: error})
+
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Something unexpected occurred"})
+    end
+  end
 end
