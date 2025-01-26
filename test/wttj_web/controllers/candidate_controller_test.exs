@@ -4,11 +4,11 @@ defmodule WttjWeb.CandidateControllerTest do
   import Wttj.JobsFixtures
   import Wttj.CandidatesFixtures
 
-  alias Wttj.Candidates.Candidate
+  alias Wttj.Candidates.{Candidate, CandidateStatuses}
 
   @update_attrs %{
     position: 43,
-    status: :interview
+    status: CandidateStatuses.interview()
   }
   @invalid_attrs %{position: nil, status: nil, email: nil}
 
@@ -17,14 +17,14 @@ defmodule WttjWeb.CandidateControllerTest do
     {:ok, conn: put_req_header(conn, "accept", "application/json"), job: job}
   end
 
-  describe "index" do
+  describe "index/2" do
     test "lists all candidates", %{conn: conn, job: job} do
       conn = get(conn, ~p"/api/jobs/#{job}/candidates")
       assert json_response(conn, 200)["data"] == []
     end
   end
 
-  describe "update candidate" do
+  describe "update/2" do
     setup [:create_candidate]
 
     test "renders candidate when data is valid", %{

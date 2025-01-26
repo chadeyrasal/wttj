@@ -1,15 +1,20 @@
 defmodule Wttj.CandidatesTest do
   use Wttj.DataCase
 
+  import ExUnit.CaptureLog
+
   import Wttj.CandidatesFixtures
   import Wttj.JobsFixtures
 
   alias Ecto.Changeset
 
   alias Wttj.{Candidates, Repo}
-  alias Wttj.Candidates.Candidate
+  alias Wttj.Candidates.{Candidate, CandidateStatuses}
 
   @invalid_attrs %{position: nil, status: nil, email: nil}
+  @new_status CandidateStatuses.new()
+  @interview_status CandidateStatuses.interview()
+  @rejected_status CandidateStatuses.rejected()
 
   setup do
     job_1 = job_fixture()
@@ -44,9 +49,9 @@ defmodule Wttj.CandidatesTest do
   describe "update_candidate/2" do
     test "with valid data updates the candidate", %{candidate: candidate} do
       email = unique_user_email()
-      update_attrs = %{position: 43, status: :rejected, email: email}
+      update_attrs = %{position: 43, status: @rejected_status, email: email}
 
-      assert {:ok, %Candidate{position: 43, status: :rejected, email: ^email}} =
+      assert {:ok, %Candidate{position: 43, status: @rejected_status, email: ^email}} =
                Candidates.update_candidate(candidate, update_attrs)
     end
 
@@ -72,13 +77,13 @@ defmodule Wttj.CandidatesTest do
       %{id: job_id} = job_fixture()
 
       candidate_new_1 =
-        candidate_fixture(%{job_id: job_id, status: :new, position: 1})
+        candidate_fixture(%{job_id: job_id, status: @new_status, position: 1})
 
       candidate_new_2 =
-        candidate_fixture(%{job_id: job_id, status: :new, position: 2})
+        candidate_fixture(%{job_id: job_id, status: @new_status, position: 2})
 
       candidate_new_3 =
-        candidate_fixture(%{job_id: job_id, status: :new, position: 3})
+        candidate_fixture(%{job_id: job_id, status: @new_status, position: 3})
 
       %{
         candidate_new_1: candidate_new_1,
@@ -99,11 +104,23 @@ defmodule Wttj.CandidatesTest do
                 move_all_up_by_one: "1 record(s) updated",
                 update_candidate: %Candidate{},
                 move_all_down_by_one: "All records updated"
-              }} = Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 1)
+              }} =
+               Candidates.reorder_candidates(%{
+                 job_id: job_id,
+                 candidate_id: candidate_new_2.id,
+                 source_column: "new",
+                 destination_column: "new",
+                 position: 1
+               })
 
-      assert %{status: :new, position: 2} = Repo.get!(Candidate, candidate_new_1.id)
-      assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_2.id)
-      assert %{status: :new, position: 3} = Repo.get!(Candidate, candidate_new_3.id)
+      assert %{status: @new_status, position: 2} =
+               Repo.get!(Candidate, candidate_new_1.id)
+
+      assert %{status: @new_status, position: 1} =
+               Repo.get!(Candidate, candidate_new_2.id)
+
+      assert %{status: @new_status, position: 3} =
+               Repo.get!(Candidate, candidate_new_3.id)
     end
 
     test "reorders successfully when a candidate is moved down in the same column", %{
@@ -117,11 +134,23 @@ defmodule Wttj.CandidatesTest do
                 move_all_up_by_one: "2 record(s) updated",
                 update_candidate: %Candidate{},
                 move_all_down_by_one: "All records updated"
-              }} = Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :new, 3)
+              }} =
+               Candidates.reorder_candidates(%{
+                 job_id: job_id,
+                 candidate_id: candidate_new_2.id,
+                 source_column: "new",
+                 destination_column: "new",
+                 position: 3
+               })
 
-      assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_1.id)
-      assert %{status: :new, position: 3} = Repo.get!(Candidate, candidate_new_2.id)
-      assert %{status: :new, position: 2} = Repo.get!(Candidate, candidate_new_3.id)
+      assert %{status: @new_status, position: 1} =
+               Repo.get!(Candidate, candidate_new_1.id)
+
+      assert %{status: @new_status, position: 3} =
+               Repo.get!(Candidate, candidate_new_2.id)
+
+      assert %{status: @new_status, position: 2} =
+               Repo.get!(Candidate, candidate_new_3.id)
     end
 
     test "reorders successfully when a candidate is moved to a different column", %{
@@ -131,13 +160,13 @@ defmodule Wttj.CandidatesTest do
       candidate_new_3: candidate_new_3
     } do
       candidate_interview_1 =
-        candidate_fixture(%{job_id: job_id, status: :interview, position: 1})
+        candidate_fixture(%{job_id: job_id, status: @interview_status, position: 1})
 
       candidate_interview_2 =
-        candidate_fixture(%{job_id: job_id, status: :interview, position: 2})
+        candidate_fixture(%{job_id: job_id, status: @interview_status, position: 2})
 
       candidate_interview_3 =
-        candidate_fixture(%{job_id: job_id, status: :interview, position: 3})
+        candidate_fixture(%{job_id: job_id, status: @interview_status, position: 3})
 
       assert {:ok,
               %{
@@ -145,14 +174,51 @@ defmodule Wttj.CandidatesTest do
                 update_candidate: %Candidate{},
                 move_all_down_by_one: "All records updated"
               }} =
-               Candidates.reorder_candidates(job_id, candidate_new_2.id, :new, :interview, 2)
+               Candidates.reorder_candidates(%{
+                 job_id: job_id,
+                 candidate_id: candidate_new_2.id,
+                 source_column: "new",
+                 destination_column: "interview",
+                 position: 2
+               })
 
-      assert %{status: :new, position: 1} = Repo.get!(Candidate, candidate_new_1.id)
-      assert %{status: :interview, position: 2} = Repo.get!(Candidate, candidate_new_2.id)
-      assert %{status: :new, position: 2} = Repo.get!(Candidate, candidate_new_3.id)
-      assert %{status: :interview, position: 1} = Repo.get!(Candidate, candidate_interview_1.id)
-      assert %{status: :interview, position: 3} = Repo.get!(Candidate, candidate_interview_2.id)
-      assert %{status: :interview, position: 4} = Repo.get!(Candidate, candidate_interview_3.id)
+      assert %{status: @new_status, position: 1} =
+               Repo.get!(Candidate, candidate_new_1.id)
+
+      assert %{status: @interview_status, position: 2} =
+               Repo.get!(Candidate, candidate_new_2.id)
+
+      assert %{status: @new_status, position: 2} =
+               Repo.get!(Candidate, candidate_new_3.id)
+
+      assert %{status: @interview_status, position: 1} =
+               Repo.get!(Candidate, candidate_interview_1.id)
+
+      assert %{status: @interview_status, position: 3} =
+               Repo.get!(Candidate, candidate_interview_2.id)
+
+      assert %{status: @interview_status, position: 4} =
+               Repo.get!(Candidate, candidate_interview_3.id)
+    end
+
+    test "returns and logs error when function called with invalid input",
+         %{
+           job_id: job_id,
+           candidate_new_2: candidate_new_2
+         } do
+      captured_log =
+        capture_log(fn ->
+          assert {:error, :invalid_input} =
+                   Candidates.reorder_candidates(%{
+                     job_id: job_id,
+                     candidate_id: candidate_new_2.id,
+                     source_column: "new",
+                     destination_column: "invalid",
+                     position: 2
+                   })
+        end)
+
+      assert captured_log =~ "The following inputs are invalid: destination_column"
     end
   end
 end

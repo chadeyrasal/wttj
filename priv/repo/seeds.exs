@@ -11,7 +11,7 @@ _candidate =
     job_id: job.id,
     email: "user3@wttj.co",
     position: 0,
-    status: :interview
+    status: Wttj.Candidates.CandidateStatuses.interview()
   })
 
 _candidate =
@@ -19,7 +19,7 @@ _candidate =
     job_id: job.id,
     email: "user4@wttj.co",
     position: 0,
-    status: :rejected
+    status: Wttj.Candidates.CandidateStatuses.rejected()
   })
 
 _candidate =
@@ -27,5 +27,5 @@ _candidate =
     job_id: job.id,
     email: "user5@wttj.co",
     position: 1,
-    status: :rejected
+    status: Wttj.Candidates.CandidateStatuses.rejected()
   })

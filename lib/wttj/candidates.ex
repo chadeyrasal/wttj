@@ -5,10 +5,13 @@ defmodule Wttj.Candidates do
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias Ecto.Multi
 
+  alias Wttj.Candidates.{Candidate, CandidateStatuses}
+  alias Wttj.Jobs.Job
   alias Wttj.Repo
-  alias Wttj.Candidates.Candidate
 
   @doc """
   Returns the list of candidates.
@@ -89,60 +92,109 @@ defmodule Wttj.Candidates do
     Candidate.changeset(candidate, attrs)
   end
 
-  # TODO: make the arg into a struct so we can validate the data before any expensive operation
-  def reorder_candidates(job_id, candidate_id, source_column, destination_column, new_position)
+  def reorder_candidates(
+        %{
+          job_id: job_id,
+          candidate_id: candidate_id,
+          source_column: source_column,
+          destination_column: destination_column,
+          position: new_position
+        } = input
+      )
       when source_column == destination_column do
-    %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
+    if input |> process_input() |> is_valid_input?(input) do
+      %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
 
-    cond do
-      old_position == new_position ->
-        {:ok, :noop}
+      cond do
+        old_position == new_position ->
+          {:ok, :noop}
 
-      # Moving candidate up
-      old_position > new_position ->
-        Multi.new()
-        |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
-          move_all_down_by_one(job_id, source_column, new_position)
-        end)
-        |> Multi.run(:update_candidate, fn _repo, _ ->
-          update_candidate(candidate, %{position: new_position})
-        end)
-        |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
-          move_all_up_by_one(job_id, source_column, old_position + 1)
-        end)
-        |> Repo.transaction()
+        # Moving candidate up
+        old_position > new_position ->
+          Multi.new()
+          |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+            move_all_down_by_one(job_id, source_column, new_position)
+          end)
+          |> Multi.run(:update_candidate, fn _repo, _ ->
+            update_candidate(candidate, %{position: new_position})
+          end)
+          |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+            move_all_up_by_one(job_id, source_column, old_position + 1)
+          end)
+          |> Repo.transaction()
 
-      # Moving candidate down
-      old_position < new_position ->
-        Multi.new()
-        |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
-          move_all_down_by_one(job_id, source_column, new_position + 1)
-        end)
-        |> Multi.run(:update_candidate, fn _repo, _ ->
-          update_candidate(candidate, %{position: new_position + 1})
-        end)
-        |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
-          move_all_up_by_one(job_id, source_column, old_position)
-        end)
-        |> Repo.transaction()
+        # Moving candidate down
+        old_position < new_position ->
+          Multi.new()
+          |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+            move_all_down_by_one(job_id, source_column, new_position + 1)
+          end)
+          |> Multi.run(:update_candidate, fn _repo, _ ->
+            update_candidate(candidate, %{position: new_position + 1})
+          end)
+          |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+            move_all_up_by_one(job_id, source_column, old_position)
+          end)
+          |> Repo.transaction()
+      end
+    else
+      {:error, :invalid_input}
     end
   end
 
-  # TODO: make the arg into a struct so we can validate the data before any expensive operation
-  def reorder_candidates(job_id, candidate_id, source_column, destination_column, new_position) do
-    %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
+  def reorder_candidates(
+        %{
+          job_id: job_id,
+          candidate_id: candidate_id,
+          source_column: source_column,
+          destination_column: destination_column,
+          position: new_position
+        } = input
+      ) do
+    if input |> process_input() |> is_valid_input?(input) do
+      %{position: old_position} = candidate = get_candidate!(job_id, candidate_id)
 
-    Multi.new()
-    |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
-      move_all_down_by_one(job_id, destination_column, new_position)
+      Multi.new()
+      |> Multi.run(:move_all_down_by_one, fn _repo, _ ->
+        move_all_down_by_one(job_id, destination_column, new_position)
+      end)
+      |> Multi.run(:update_candidate, fn _repo, _ ->
+        update_candidate(candidate, %{position: new_position, status: destination_column})
+      end)
+      |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
+        move_all_up_by_one(job_id, source_column, old_position)
+      end)
+      |> Repo.transaction()
+    else
+      {:error, :invalid_input}
+    end
+  end
+
+  defp is_valid_input?([], _input), do: true
+
+  defp is_valid_input?(invalid_keys, input) do
+    Logger.error(
+      "The following inputs are invalid: #{Enum.join(invalid_keys, ", ")} for input: #{inspect(input)}"
+    )
+
+    false
+  end
+
+  defp process_input(input) do
+    Enum.reduce(input, [], fn {key, value}, acc ->
+      case key do
+        :job_id -> Repo.exists?(Job, id: value)
+        :candidate_id -> Repo.exists?(Candidate, id: value)
+        :source_column -> CandidateStatuses.is_valid_string_status?(value)
+        :destination_column -> CandidateStatuses.is_valid_string_status?(value)
+        :position -> is_integer(value)
+      end
+      |> if do
+        acc
+      else
+        [key | acc]
+      end
     end)
-    |> Multi.run(:update_candidate, fn _repo, _ ->
-      update_candidate(candidate, %{position: new_position, status: destination_column})
-    end)
-    |> Multi.run(:move_all_up_by_one, fn _repo, _ ->
-      move_all_up_by_one(job_id, source_column, old_position)
-    end)
-    |> Repo.transaction()
   end
 
   defp move_all_up_by_one(job_id, column, position) do
