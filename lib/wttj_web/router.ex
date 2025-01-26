@@ -19,6 +19,7 @@ defmodule WttjWeb.Router do
     pipe_through :api
 
     resources "/jobs", JobController, except: [:new, :edit] do
+      put "/candidates/reorder", CandidateController, :reorder
       resources "/candidates", CandidateController, except: [:new, :edit]
     end
   end
