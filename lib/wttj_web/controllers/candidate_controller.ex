@@ -37,7 +37,7 @@ defmodule WttjWeb.CandidateController do
       candidate_id: candidate_id,
       source_column: source_column,
       destination_column: destination_column,
-      position: String.to_integer(new_position)
+      position: new_position
     }
     |> Candidates.reorder_candidates()
     |> case do
