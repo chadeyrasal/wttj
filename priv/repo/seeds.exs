@@ -29,3 +29,6 @@ _candidate =
     position: 1,
     status: Wttj.Candidates.CandidateStatuses.rejected()
   })
+
+_account = Wttj.Accounts.create(%{email: "admin@wttj.co", password: "password"})
+_account = Wttj.Accounts.create(%{email: "user@wttj.co", password: "password"})
