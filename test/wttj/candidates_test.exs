@@ -1,4 +1,5 @@
 defmodule Wttj.CandidatesTest do
+  alias Wttj.CandidatesFixtures
   use Wttj.DataCase
 
   import ExUnit.CaptureLog
@@ -72,7 +73,112 @@ defmodule Wttj.CandidatesTest do
     end
   end
 
-  describe("reorder_candidate/4") do
+  describe "move_candidate/1" do
+    setup do
+      %{id: job_id} = job_fixture()
+
+      candidate = CandidatesFixtures.candidate_fixture(%{job_id: job_id})
+
+      %{id: candidate_id, status: status, position: position, version: version} =
+        CandidatesFixtures.candidate_fixture(%{
+          job_id: job_id,
+          status: @new_status,
+          position: 0,
+          version: 1
+        })
+
+      %{
+        job_id: job_id,
+        candidate_id: candidate_id,
+        status: status,
+        position: position,
+        version: version,
+        candidate: candidate
+      }
+    end
+
+    test "returns the updated state when the input is valid and the client version is the same as the version in the database",
+         %{
+           job_id: job_id,
+           candidate_id: candidate_id,
+           version: version,
+           candidate: %{id: other_candidate_id}
+         } do
+      assert {:ok,
+              [
+                %{
+                  id: ^candidate_id,
+                  job_id: ^job_id,
+                  version: 2,
+                  status: @interview_status,
+                  position: 0
+                },
+                %{id: ^other_candidate_id}
+              ]} =
+               Candidates.move_candidate(%{
+                 job_id: job_id,
+                 candidate_id: candidate_id,
+                 client_version: version,
+                 source_column: "new",
+                 destination_column: "interview",
+                 position: 0
+               })
+    end
+
+    test "returns and logs an error and returns the current state when the input is invalid", %{
+      candidate: %{id: other_candidate_id},
+      version: version,
+      candidate_id: candidate_id,
+      status: status,
+      position: position,
+      job_id: job_id
+    } do
+      captured_log =
+        capture_log(fn ->
+          assert {:error,
+                  [
+                    %{id: ^other_candidate_id},
+                    %{id: ^candidate_id, status: ^status, position: ^position, version: ^version}
+                  ]} =
+                   Candidates.move_candidate(%{
+                     job_id: job_id,
+                     candidate_id: candidate_id,
+                     client_version: 1,
+                     source_column: "new",
+                     destination_column: "invalid",
+                     position: 0
+                   })
+        end)
+
+      assert captured_log =~ "Invalid input"
+    end
+
+    test "returns an error  and returns the current state when the client version is different from the version in the database",
+         %{
+           candidate: %{id: other_candidate_id},
+           version: version,
+           candidate_id: candidate_id,
+           status: status,
+           position: position,
+           job_id: job_id
+         } do
+      assert {:error,
+              [
+                %{id: ^other_candidate_id},
+                %{id: ^candidate_id, status: ^status, position: ^position, version: ^version}
+              ]} =
+               Candidates.move_candidate(%{
+                 job_id: job_id,
+                 candidate_id: candidate_id,
+                 client_version: 0,
+                 source_column: "new",
+                 destination_column: "interview",
+                 position: 0
+               })
+    end
+  end
+
+  describe "reorder_candidate/1" do
     setup do
       %{id: job_id} = job_fixture()
 

@@ -92,6 +92,28 @@ defmodule Wttj.Candidates do
     Candidate.changeset(candidate, attrs)
   end
 
+  def move_candidate(
+        %{job_id: job_id, candidate_id: candidate_id, client_version: client_version} = input
+      ) do
+    %{version: version} = get_candidate!(job_id, candidate_id)
+
+    with true <- client_version == version,
+         {:ok, _} <- reorder_candidates(input) do
+      {:ok, list_candidates(job_id)}
+    else
+      false ->
+        {:error, list_candidates(job_id)}
+
+      {:error, :invalid_input} ->
+        Logger.error("Invalid input: #{inspect(input)}")
+        {:error, list_candidates(job_id)}
+
+      error ->
+        Logger.error("Unexpected error: #{inspect(error)}")
+        {:error, list_candidates(job_id)}
+    end
+  end
+
   def reorder_candidates(
         %{
           job_id: job_id,
@@ -188,6 +210,7 @@ defmodule Wttj.Candidates do
         :source_column -> CandidateStatuses.is_valid_string_status?(value)
         :destination_column -> CandidateStatuses.is_valid_string_status?(value)
         :position -> is_integer(value)
+        :client_version -> is_integer(value)
       end
       |> if do
         acc
