@@ -1,4 +1,4 @@
-import { Socket, Channel } from 'phoenix'
+import { Socket, Channel, type PushStatus } from 'phoenix'
 import { useState, useEffect } from 'react'
 import { useAuth } from './useAuth'
 import { useQueryClient } from 'react-query'
@@ -41,13 +41,21 @@ export const useBoardChannel = (jobId: string) => {
     if (!channel) throw new Error('Channel not connected')
 
     try {
-      const response = await channel.push('move_candidate', {
-        jobId: variables.jobId,
-        candidateId: variables.candidateId,
-        sourceColumn: variables.sourceColumn,
-        destinationColumn: variables.destinationColumn,
-        position: variables.position,
-        version: variables.version,
+      const { response } = await new Promise<{
+        status: PushStatus
+        response: { candidates: Candidate[] }
+      }>((resolve, reject) => {
+        channel
+          .push('move_candidate', {
+            jobId: variables.jobId,
+            candidateId: variables.candidateId,
+            sourceColumn: variables.sourceColumn,
+            destinationColumn: variables.destinationColumn,
+            position: variables.position,
+            version: variables.version,
+          })
+          .receive('ok', response => resolve({ status: 'ok', response }))
+          .receive('error', response => reject({ status: 'error', response }))
       })
 
       return response

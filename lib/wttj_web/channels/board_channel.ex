@@ -36,7 +36,7 @@ defmodule WttjWeb.BoardChannel do
         {:reply, {:ok, %{candidates: updated_candidates}}, socket}
 
       {:error, current_state} ->
-        {:reply, {:error, %{current: current_state}}, socket}
+        {:reply, {:error, %{reason: %{current: current_state}}}, socket}
     end
   end
 end
