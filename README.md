@@ -99,6 +99,8 @@ What could be improved:
 - The frontend uses a simple window.alert mechanism to notify the user that another user has moved a card and that's not ideal as it requires the user to click on the alert to close it. A toast notification is better practice in my experience as it informs the user without requiring an action.
 - The `reorder` endpoint implemented previously is no longer required, as the channel handles the real time updates. This should be cleaned up.
 
+For this feature as well as the previous one, I have included some logging in specific places, which in a real life scenario would be useful for monitoring and debugging.
+
 Pull requests:
 
 - [Implementing minimal authentication](https://github.com/chadeyrasal/wttj/pull/3)
