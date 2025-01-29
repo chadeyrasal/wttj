@@ -118,3 +118,8 @@ In the current implementation, after each card move, whether the move is success
 There are also several optimizations that could be done on the frontend. The first one I would implement is limiting the amount of candidates displayed in each column on the board. This means we would only load and display a subset of candidates and require a user to scroll and maybe click, to fetch the next batch of candidates. This would reduce loading time and improve the user experience when there are large numbers of candidates for a specific job.
 
 Finally a note, implementing phoenix channels to handle conflicts is in itself an performance optimisation compared to make API calls for each card move. The network load is reduced and latency is potentially reduced as well because there is only one connection per user, since the socket is maintained for the duration of the session.
+
+### Other improvements
+
+- A CI pipeline would be a useful addition to ensure that each pull requests matches basic requirements, like tests passing and the application running.
+- In production a handful of e2e tests would be useful to ensure critical paths are working as expected. In our case ensuring that candidate cards are visible to logged in users and that cards can be moved within a column and between column. For this specific projects, I included manual testing instructions in each relevant pull request to ensure that the new features worked as expected and that there was no regression for critical paths.
