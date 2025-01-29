@@ -30,5 +30,15 @@ _candidate =
     status: Wttj.Candidates.CandidateStatuses.rejected()
   })
 
-_account = Wttj.Accounts.create(%{email: "admin@wttj.co", password: "password"})
-_account = Wttj.Accounts.create(%{email: "user@wttj.co", password: "password"})
+_candidate =
+  Wttj.Candidates.create_candidate(%{
+    job_id: job.id,
+    email: "user6@wttj.co",
+    position: 1,
+    status: Wttj.Candidates.CandidateStatuses.hired()
+  })
+
+_account = Wttj.Accounts.create(%{email: "minerva@hogwarts.com", password: "password"})
+_account = Wttj.Accounts.create(%{email: "pomona@hogwarts.com", password: "password"})
+_account = Wttj.Accounts.create(%{email: "albus@hogwarts.com", password: "password"})
+_account = Wttj.Accounts.create(%{email: "severus@hogwarts.com", password: "password"})

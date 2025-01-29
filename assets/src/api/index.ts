@@ -8,6 +8,7 @@ export type Candidate = {
   email: string
   status: 'new' | 'interview' | 'hired' | 'rejected'
   position: number
+  version: number
 }
 
 export type ReorderVariables = {
@@ -16,6 +17,7 @@ export type ReorderVariables = {
   sourceColumn: string
   destinationColumn: string
   position: number
+  version: number
 }
 
 export const getJobs = async (): Promise<Job[]> => {

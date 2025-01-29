@@ -1,14 +1,14 @@
 import { useParams } from 'react-router-dom'
-import { useMutation, useQueryClient } from 'react-query'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { useJob, useCandidates } from '../../hooks'
 import { Text } from '@welcome-ui/text'
 import { Flex } from '@welcome-ui/flex'
 import { Box } from '@welcome-ui/box'
 import { useMemo } from 'react'
-import { Candidate, ReorderVariables, reorderCandidates } from '../../api'
+import { Candidate } from '../../api'
 import CandidateCard from '../../components/Candidate'
 import { Badge } from '@welcome-ui/badge'
+import { useReorderCandidates } from '../../hooks/useReorderCandidates'
 
 type Statuses = 'new' | 'interview' | 'hired' | 'rejected'
 const COLUMNS: Statuses[] = ['new', 'interview', 'hired', 'rejected']
@@ -21,10 +21,10 @@ interface SortedCandidates {
 }
 
 function JobShow() {
-  const queryClient = useQueryClient()
   const { jobId } = useParams()
   const { job } = useJob(jobId)
-  const { candidates } = useCandidates(jobId)
+  const { candidates } = useCandidates(jobId!)
+  const { mutate } = useReorderCandidates(jobId!)
 
   const sortedCandidates = useMemo(() => {
     if (!candidates) return {}
@@ -34,13 +34,6 @@ function JobShow() {
       return acc
     }, {})
   }, [candidates])
-
-  const { mutate } = useMutation({
-    mutationFn: reorderCandidates,
-    onSettled: (_, __, variables: ReorderVariables) => {
-      queryClient.invalidateQueries(['candidates', variables.jobId])
-    },
-  })
 
   const onDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result
@@ -52,6 +45,7 @@ function JobShow() {
       sourceColumn: source.droppableId,
       destinationColumn: destination.droppableId,
       position: destination.index,
+      version: candidates?.find(candidate => candidate.id.toString() === draggableId)?.version || 0,
     })
   }
 
